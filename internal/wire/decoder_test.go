@@ -3,8 +3,8 @@ package wire_test
 import (
 	"testing"
 
-	"github.com/vivangkumar/skv/pkg/test"
-	"github.com/vivangkumar/skv/pkg/wire"
+	"github.com/vivangkumar/skv/internal/test"
+	"github.com/vivangkumar/skv/internal/wire"
 )
 
 func TestDecodeCmd(t *testing.T) {

@@ -9,10 +9,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/vivangkumar/skv/pkg/backend"
-	"github.com/vivangkumar/skv/pkg/config"
-	"github.com/vivangkumar/skv/pkg/node"
-	"github.com/vivangkumar/skv/pkg/store"
+	"github.com/vivangkumar/skv/internal/backend"
+	"github.com/vivangkumar/skv/internal/config"
+	"github.com/vivangkumar/skv/internal/server"
+	"github.com/vivangkumar/skv/internal/store"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 
 	err := run(ctx)
 	if err != nil {
-		log.Errorf("stopping skv")
+		log.WithError(err).Errorf("stopping skv")
 		os.Exit(1)
 	}
 }
@@ -28,25 +28,25 @@ func main() {
 func run(ctx context.Context) error {
 	cfg, err := config.New()
 	if err != nil {
-		return fmt.Errorf("run: %w", err)
+		return fmt.Errorf("config: %w", err)
 	}
 
 	configureLog(cfg.Log.Level)
 
-	st := store.NewStore()
-	be := backend.NewBackend(st)
+	st := store.New()
+	be := backend.New(st)
 
-	n, err := node.NewNode(be, cfg.Node)
+	s, err := server.New(be, cfg.Server)
 	if err != nil {
-		return fmt.Errorf("node: %w", err)
+		return fmt.Errorf("server: %w", err)
 	}
 
-	log.WithField("node_id", n.ID()).Info("started node")
+	log.Info("starting skv server")
 
-	go n.Listen(ctx)
+	go s.Listen(ctx)
 
 	<-ctx.Done()
-	n.Stop()
+	s.Stop()
 
 	return nil
 }

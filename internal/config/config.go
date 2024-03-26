@@ -5,14 +5,16 @@ import (
 
 	"github.com/joeshaw/envdecode"
 	log "github.com/sirupsen/logrus"
-	"github.com/vivangkumar/skv/pkg/node"
+	"github.com/vivangkumar/skv/internal/server"
 )
 
-// Config represents the configuration for SKV as a whole
+// Config represents the configuration for skv as a whole.
 type Config struct {
-	// Node configuration
-	Node node.Config
-	Log  struct {
+	// Server configuration.
+	Server server.Config
+
+	// Log represents Logging configuration.
+	Log struct {
 		Level log.Level `env:"LOG_LEVEL,default=info"`
 	}
 }
@@ -29,6 +31,7 @@ func New() (*Config, error) {
 	return &cfg, nil
 }
 
-func (c *Config) NodeConfig() node.Config {
-	return c.Node
+// ServerConfig returns server specific config
+func (c *Config) ServerConfig() server.Config {
+	return c.Server
 }

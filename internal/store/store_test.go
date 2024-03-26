@@ -5,12 +5,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/vivangkumar/skv/pkg/store"
-	"github.com/vivangkumar/skv/pkg/test"
+	"github.com/vivangkumar/skv/internal/store"
+	"github.com/vivangkumar/skv/internal/test"
 )
 
 func TestStore(t *testing.T) {
-	s := store.NewStore()
+	s := store.New()
 
 	t.Run("set/get", func(t *testing.T) {
 		k := "key"
@@ -34,7 +34,7 @@ func TestStore(t *testing.T) {
 	})
 
 	t.Run("concurrent read/ write", func(t *testing.T) {
-		s := store.NewStore()
+		s := store.New()
 
 		wg := sync.WaitGroup{}
 		for i := 0; i < 100; i++ {

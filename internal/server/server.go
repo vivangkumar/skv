@@ -1,4 +1,4 @@
-package node
+package server
 
 import (
 	"bufio"
@@ -9,11 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/vivangkumar/skv/pkg/backend"
-	"github.com/vivangkumar/skv/pkg/wire"
+	"github.com/vivangkumar/skv/internal/backend"
+	"github.com/vivangkumar/skv/internal/wire"
 )
 
 const (
@@ -28,119 +27,99 @@ type be interface {
 	Stop() error
 }
 
-// Node represents an skv cache node.
-//
-// A node is an abstraction that links
-// the storage layer to the network layer
-// and is respnsible for translating client
-// network requests into command and replying back.
-//
-// Each node is assigned a unique ID since there can
-// be multiple such nodes.
-type Node struct {
-	// A unique ID for the Node.
-	id string
-
-	// The backing store for the node
+// Server represents an skv TCP server.
+type Server struct {
+	// The backing store for the server.
 	backend be
 
-	// listener on which the node listens to
+	// listener on which the server listens to
 	// for new incoming TCP connections.
 	listener net.Listener
 
-	// stop signals for the node to exit.
+	// stop signals for the server to exit.
 	stop chan struct{}
 
-	m         sync.Mutex
+	once      sync.Once
 	isStopped bool
 
 	// conns tracks the accepted connections.
 	conns sync.WaitGroup
 
-	// node specific logger
+	// server specific logger.
 	l *log.Entry
 }
 
-// NewNode creates a new instance of Node
-func NewNode(backend be, cfg Config) (*Node, error) {
+// New creates a new skv TCP server.
+func New(backend be, cfg Config) (*Server, error) {
 	l, err := net.Listen("tcp", cfg.Addr)
 	if err != nil {
-		return nil, fmt.Errorf("node: listen: %w", err)
+		return nil, fmt.Errorf("server: listen: %w", err)
 	}
 
-	id := uuid.New().String()
-
-	return &Node{
+	return &Server{
 		backend:   backend,
 		listener:  l,
 		stop:      make(chan struct{}),
-		m:         sync.Mutex{},
+		once:      sync.Once{},
 		isStopped: false,
 		conns:     sync.WaitGroup{},
-		id:        id,
-		l:         log.WithField("node_id", id),
+		l:         log.WithField("component", "server"),
 	}, nil
 }
 
-// Listen accepts connections on the node's
-// connection port.
-func (n *Node) Listen(ctx context.Context) {
+// Listen accepts connections on the server's connection port.
+func (s *Server) Listen(ctx context.Context) {
 	for {
-		conn, err := n.listener.Accept()
+		conn, err := s.listener.Accept()
 		if err != nil {
 			select {
-			case <-n.stop:
+			case <-s.stop:
 				return
 			default:
-				n.l.WithError(err).Error("node: listener: accept")
+				s.l.WithError(err).Error("failed to accept connection")
 			}
 		}
 
 		conn.SetDeadline(time.Now().Add(idleTimeoutDuration))
-		go n.handleConn(ctx, conn)
+		go s.handleConn(ctx, conn)
 	}
 }
 
-// ID returns the unique node ID.
-func (n *Node) ID() string {
-	return n.id
-}
-
-// Stop shuts down the node gracefully.
+// Stop shuts down the server gracefully.
 //
 // It does so by closing the TCP listener and
 // waiting for all currently served connections to
 // be served or to be closed.
 //
 // It can be safely called multiple times.
-func (n *Node) Stop() {
-	if n.isStopped {
+func (s *Server) Stop() {
+	if s.isStopped {
 		return
 	}
 
-	n.l.WithField("node_id", n.id).Info("node: stopping")
+	s.l.Info("stopping server")
 
-	close(n.stop)
-	if err := n.listener.Close(); err != nil {
-		n.l.WithError(err).Error("node: listener: close")
+	close(s.stop)
+	if err := s.listener.Close(); err != nil {
+		s.l.WithError(err).Error("failed to close listener")
 	}
-	n.conns.Wait()
+	s.conns.Wait()
 
-	n.m.Lock()
-	n.isStopped = true
-	n.m.Unlock()
+	s.once.Do(func() {
+		s.isStopped = true
+	})
 
-	if err := n.backend.Stop(); err != nil {
-		n.l.WithError(err).Error("node: backend: stop")
+	if err := s.backend.Stop(); err != nil {
+		s.l.WithError(err).Error("failed to stop backend")
 	}
 }
 
 // handleConn handles a single TCP connection
 // it decodes incoming requests and validates them
 // before passing it on to the backend.
-func (n *Node) handleConn(ctx context.Context, conn net.Conn) {
-	n.conns.Add(1)
-	defer n.conns.Done()
+func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
+	s.conns.Add(1)
+	defer s.conns.Done()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -150,7 +129,7 @@ func (n *Node) handleConn(ctx context.Context, conn net.Conn) {
 		conn.Close()
 	}()
 
-	n.l.WithField("remote_addr", conn.RemoteAddr().String()).Info("handling connection")
+	s.l.WithField("remote_addr", conn.RemoteAddr().String()).Info("handling connection")
 
 	lr := &io.LimitedReader{R: conn, N: maxReadBytes}
 	scanner := bufio.NewScanner(lr)
@@ -162,8 +141,8 @@ func (n *Node) handleConn(ctx context.Context, conn net.Conn) {
 
 		cmd, err := wire.DecodeCmd(line)
 		if err != nil {
-			n.l.WithError(err).Error("node: handle conn: decode")
-			n.writeReply(
+			s.l.WithError(err).Error("failed to decode command")
+			s.writeReply(
 				conn,
 				wire.Err,
 				wire.CmdDecodeErr,
@@ -173,43 +152,25 @@ func (n *Node) handleConn(ctx context.Context, conn net.Conn) {
 			continue
 		}
 
-		r, err := n.command(ctx, cmd)
+		r, err := s.command(ctx, cmd)
 		if err != nil {
-			n.l.WithError(err).Error("node: handle conn: command")
-			n.writeReply(conn, wire.Err, wire.CmdFailedErr, "command failed")
+			s.l.WithError(err).WithField("command", cmd.Type).Error("failed to process command")
+			s.writeReply(conn, wire.Err, wire.CmdFailedErr, "command failed")
+			continue
 		}
 
-		n.writeReply(conn, wire.OK, r.args...)
+		s.writeReply(conn, wire.OK, r.args...)
 	}
 }
 
-type result struct {
-	args []string
-}
-
-type cmdError struct {
-	err error
-}
-
-func newCmdError(err error) cmdError {
-	return cmdError{err: fmt.Errorf("command: %s", err)}
-}
-
-func (c cmdError) CommandFailed() bool {
-	return true
-}
-
-func (c cmdError) Error() string {
-	return c.err.Error()
-}
-
-func (n *Node) command(
+// command processes received commands by forwarding it to the backend.
+func (s *Server) command(
 	ctx context.Context,
 	cmd wire.Cmd,
 ) (result, error) {
 	switch cmd.Type {
 	case wire.Set:
-		err := n.backend.Set(
+		err := s.backend.Set(
 			ctx,
 			backend.SetCmd{Key: cmd.Args[0], Value: cmd.Args[1]},
 		)
@@ -217,14 +178,14 @@ func (n *Node) command(
 			return result{}, newCmdError(err)
 		}
 	case wire.Get:
-		v, err := n.backend.Get(ctx, backend.GetCmd{Key: cmd.Args[0]})
+		v, err := s.backend.Get(ctx, backend.GetCmd{Key: cmd.Args[0]})
 		if err != nil {
 			return result{}, newCmdError(err)
 		}
 
 		return result{args: []string{v}}, nil
 	case wire.Del:
-		err := n.backend.Delete(ctx, backend.DelCmd{Key: cmd.Args[0]})
+		err := s.backend.Delete(ctx, backend.DelCmd{Key: cmd.Args[0]})
 		if err != nil {
 			return result{}, newCmdError(err)
 		}
@@ -235,12 +196,10 @@ func (n *Node) command(
 
 // writeReply writes a reply to the connection.
 //
-// if a reply cannot be written, then we can assume
+// If a reply cannot be written, then we can assume
 // the connection has failed and that the client will
 // retry the request again.
-//
-// TODO: metrics.
-func (n *Node) writeReply(
+func (s *Server) writeReply(
 	conn net.Conn,
 	typ wire.Reply,
 	args ...string,
@@ -262,4 +221,24 @@ func (n *Node) writeReply(
 	conn.SetDeadline(time.Now().Add(idleTimeoutDuration))
 
 	return nil
+}
+
+type result struct {
+	args []string
+}
+
+type cmdError struct {
+	err error
+}
+
+func newCmdError(err error) cmdError {
+	return cmdError{err: fmt.Errorf("command: %s", err)}
+}
+
+func (c cmdError) CommandFailed() bool {
+	return true
+}
+
+func (c cmdError) Error() string {
+	return c.err.Error()
 }

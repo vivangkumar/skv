@@ -6,7 +6,7 @@ It is a rudimentary in-memory key value store that only supports string -> strin
 
 ## Why?
 
-Just a quick project to demonstrate the basics of networking:
+Just a quick project to run through some of the concepts below
 - Implementing a TCP/IP server
 - Creating a TCP protocol
 - Encoding & decoding protocol messages
@@ -14,9 +14,9 @@ Just a quick project to demonstrate the basics of networking:
 
 ## Protocol
 
-`skv` runs over a very basic  string protocol over TCP.
+`skv` runs over a very basic (and unoptimised) string protocol over TCP.
 
-The operations it supports are `set`, `get` and `delete`.
+The operations it supports are `set`, `get` and `del`.
 
 All commands are terminated with `\r\n` (carriage return, new line)
 
@@ -48,8 +48,12 @@ after the `ok` - `ok:<value>`.
 
 In cases where the value doesn't exist. For example in the case of getting a key that doesn't exist, a `null` value is returned.
 
-If there was an error, an `err` is sent back with an error code and message - `err:<error-code><error-string>`
+If there was an error, an `err` is sent back with an error code and message - `err:<error_code><error_string>`
 
 ## Pipelining
 
 Currently, pipelining is not supported.
+
+## Persistence & Backups
+
+Persistence and backups are also not supported

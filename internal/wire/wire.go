@@ -32,24 +32,21 @@ var expectedArgsCount = map[Operation]int{
 	Del: 1,
 }
 
-// String implements the Stringer interface
+// String implements the Stringer interface.
 func (o Operation) String() string {
 	return ops[o]
 }
 
-// Cmd represents a command that has been
-// sent over the wire
+// Cmd represents a command that has been sent over the wire.
 type Cmd struct {
-	// Type is the type of operation
-	// set, get or del
+	// Type is the type of operation set, get or del.
 	Type Operation
 
-	// Args contains the arguments passed
-	// to commands
+	// Args contains the arguments passed to commands.
 	//
 	// In case of set, the args will contain
 	// the key followed by the value in the
-	// order that they were passed in
+	// order that they were passed in.
 	Args []string
 }
 
@@ -60,13 +57,11 @@ const (
 	Err
 )
 
-// CmdReply represents a reply to a command
-// encoded onto the wire
+// CmdReply represents a reply to a command encoded onto the wire.
 type CmdReply struct {
-	// Type is either OK or Err
+	// Type is either OK or Err.
 	Type Reply
 
-	// Args contains any arguments to be written
-	// over the wire
+	// Args contains any arguments to be written over the wire.
 	Args []string
 }

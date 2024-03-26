@@ -11,19 +11,18 @@ type store interface {
 	Stop() error
 }
 
-// Backend represents an abstraction to Store
-// It exists to add a layer of context cancellation.
+// Backend represents an abstraction over Store.
+// It provides context propagation & cancellation.
 type Backend struct {
 	st store
 }
 
-// NewBackend creates a bakcend for the given store
-func NewBackend(st store) *Backend {
+// New creates a bakcend for the given store.
+func New(st store) *Backend {
 	return &Backend{st: st}
 }
 
-// Set sets a value to the store while allowing
-// context cancellation.
+// Set sets a value to the store.
 func (b *Backend) Set(ctx context.Context, cmd SetCmd) error {
 	select {
 	case <-ctx.Done():
@@ -37,7 +36,7 @@ func (b *Backend) Set(ctx context.Context, cmd SetCmd) error {
 
 // Get returns a value from the store.
 //
-// If no value is found, an empty string is returned.
+// If a value does not exist, an empty string is returned.
 func (b *Backend) Get(ctx context.Context, cmd GetCmd) (string, error) {
 	select {
 	case <-ctx.Done():
@@ -64,6 +63,7 @@ func (b *Backend) Delete(ctx context.Context, cmd DelCmd) error {
 	return nil
 }
 
+// Stop cleans up the underlying store.
 func (b *Backend) Stop() error {
 	return b.st.Stop()
 }

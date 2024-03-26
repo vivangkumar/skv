@@ -13,17 +13,17 @@ type Store struct {
 	underlying map[string]string
 }
 
-// NewStore constructs a key-value store.
-func NewStore() *Store {
+// New constructs a key-value store.
+func New() *Store {
 	return &Store{
 		underlying: make(map[string]string),
 		m:          sync.Mutex{},
 	}
 }
 
-// Get returns a value with a bool for the given key.
+// Get returns a value from the store.
 //
-// bool works according to regular go semantics.
+// If the value exists, the second return value will return true.
 func (s *Store) Get(k string) (string, bool) {
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -48,6 +48,7 @@ func (s *Store) Delete(k string) {
 	delete(s.underlying, k)
 }
 
+// Stop deletes the underlying map.
 func (s *Store) Stop() error {
 	s.m.Lock()
 	defer s.m.Unlock()

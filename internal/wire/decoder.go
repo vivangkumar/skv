@@ -6,18 +6,18 @@ import (
 	"strings"
 )
 
-// The message protocol is fairly simple and dumb
+// The message protocol is fairly simple and dumb.
 //
 // "<cmd>:<arg1>:<arg2>\r\n"
 //
-// All commands are terminated with \r\n
+// All commands are terminated with \r\n.
 //
 // For the time being pipelining is not supported
 // everything except the first command will be
-// discarded
+// discarded.
 
 // DecodeCmd decodes requests sent over the wire
-// into internal wire datatypes
+// into internal wire datatypes.
 func DecodeCmd(req string) (Cmd, error) {
 	splitReq := strings.Split(req, sep)
 

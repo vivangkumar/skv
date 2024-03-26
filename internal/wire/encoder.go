@@ -14,7 +14,7 @@ const (
 )
 
 // EncodeReply translates CmdReply to a byte array
-// so that it can be written over the wire
+// so that it can be written over the wire.
 func EncodeReply(reply CmdReply) ([]byte, error) {
 	switch reply.Type {
 	case OK:
