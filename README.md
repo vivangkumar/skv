@@ -6,14 +6,11 @@ It is a rudimentary in-memory key value store that only supports string -> strin
 
 ## Why?
 
-For the lolz really.
-
-I wanted to implement something basic and gradually build it up to implement features of a modern kv store such as replication and failovers.
-
-Both of which require some form of network protocol and network level code implementations.
-
-For the most part, the intention is to make use of Go's pretty
-extensive stdlib when implementing this.
+Just a quick project to demonstrate the basics of networking:
+- Implementing a TCP/IP server
+- Creating a TCP protocol
+- Encoding & decoding protocol messages
+- Graceful shutdowns
 
 ## Protocol
 
@@ -49,18 +46,10 @@ has been carried out successfully.
 Where the operation returns a value (`get`), the return value comes
 after the `ok` - `ok:<value>`.
 
-If there was an error, an `err` is sent back with an error string - `err:<error-string>`
+In cases where the value doesn't exist. For example in the case of getting a key that doesn't exist, a `null` value is returned.
 
-## Replication
-
-I envisage this as synchronous replication starting with a leader follower pattern.
-
-Operations performed on the leader will reflect in followers.
-
-## Failovers
-
-This will employ a simple leader-follower failover strategy where a follower is promoted as the leader in case the leader is unreachable.
+If there was an error, an `err` is sent back with an error code and message - `err:<error-code><error-string>`
 
 ## Pipelining
 
-Allows making multiple requests to the server reducing the RTT.
+Currently, pipelining is not supported.
